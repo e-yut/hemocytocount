@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="hemocytocount — cells per mL and viability calculator for a Neubauer haemocytometer using dye exclusion.">
+  <meta name="theme-color" content="#0f766e">
+  <title>hemocytocount v0.1</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f766e'/%3E%3Cpath d='M11 4v24M21 4v24M4 11h24M4 21h24' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="static/style.css">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('hemocytocount.theme'); } catch (e) {}
+      if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>hemocytocount <span class="version">v0.1</span></h1>
+    <div class="topbar-actions">
+      <button type="button" id="instructionsBtn" class="btn">Instructions</button>
+      <button type="button" id="themeBtn" class="btn" aria-label="Toggle light/dark mode"></button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <div class="col">
+      <section class="card" aria-labelledby="countsTitle">
+        <div class="card-head">
+          <h2 id="countsTitle">Haemocytometer counts</h2>
+          <button type="button" id="resetBtn" class="btn btn-danger">Reset</button>
+        </div>
+        <p class="hint">Enter live and dead counts for each 1&nbsp;mm square you counted. Leave uncounted squares blank — the calculation uses only the squares with a value.</p>
+        <div class="hemo" id="hemo"></div>
+        <p class="legend">
+          <span class="key key-live"></span> Live (unstained)
+          <span class="key key-dead"></span> Dead (stained)
+          <span class="key key-rule"></span> Count cells touching these lines
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="tallyTitle">
+        <div class="card-head">
+          <h2 id="tallyTitle">Tally clicker</h2>
+          <button type="button" id="soundBtn" class="btn" aria-pressed="true"></button>
+        </div>
+        <div class="square-picker" role="group" aria-label="Square to tally">
+          <span class="picker-label">Square</span>
+          <div id="squarePicker" class="chips"></div>
+        </div>
+        <div class="tally">
+          <div class="tally-col">
+            <button type="button" id="tallyLive" class="tally-btn tally-live">
+              <span class="tally-name">Live</span>
+              <span class="tally-count" id="tallyLiveCount">0</span>
+              <span class="tally-plus">tap +1</span>
+            </button>
+            <button type="button" id="undoLive" class="btn btn-small" aria-label="Subtract one live cell">−1 live</button>
+          </div>
+          <div class="tally-col">
+            <button type="button" id="tallyDead" class="tally-btn tally-dead">
+              <span class="tally-name">Dead</span>
+              <span class="tally-count" id="tallyDeadCount">0</span>
+              <span class="tally-plus">tap +1</span>
+            </button>
+            <button type="button" id="undoDead" class="btn btn-small" aria-label="Subtract one dead cell">−1 dead</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="card" aria-labelledby="sampleTitle">
+        <h2 id="sampleTitle">Sample</h2>
+        <div class="fields">
+          <label class="field">
+            <span>Total resuspension volume (mL)</span>
+            <input type="number" id="volume" inputmode="decimal" min="0" step="any" placeholder="e.g. 5">
+          </label>
+          <label class="field">
+            <span>Dilution factor <small>(1:1 with dye = 2)</small></span>
+            <input type="number" id="dilution" inputmode="decimal" min="1" step="any" value="2">
+          </label>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="resultsTitle">
+        <div class="card-head">
+          <h2 id="resultsTitle">Results</h2>
+          <label class="switch">
+            <input type="checkbox" id="sciToggle" checked>
+            <span>Scientific notation</span>
+          </label>
+        </div>
+        <p class="summary" id="summary" aria-live="polite"></p>
+        <div class="results">
+          <div class="result result-live">
+            <span class="result-label">Live cells / mL</span>
+            <span class="result-value" id="liveConc">—</span>
+          </div>
+          <div class="result result-dead">
+            <span class="result-label">Dead cells / mL</span>
+            <span class="result-value" id="deadConc">—</span>
+          </div>
+          <div class="result">
+            <span class="result-label">Total cells / mL</span>
+            <span class="result-value" id="totalConc">—</span>
+          </div>
+          <div class="result result-viability">
+            <span class="result-label">Viability</span>
+            <span class="result-value" id="viability">—</span>
+          </div>
+        </div>
+        <h3 class="subhead">Total cells in suspension</h3>
+        <div class="results">
+          <div class="result result-live">
+            <span class="result-label">Live cells</span>
+            <span class="result-value" id="liveTotal">—</span>
+          </div>
+          <div class="result result-dead">
+            <span class="result-label">Dead cells</span>
+            <span class="result-value" id="deadTotal">—</span>
+          </div>
+          <div class="result result-wide">
+            <span class="result-label">All cells</span>
+            <span class="result-value" id="allTotal">—</span>
+          </div>
+        </div>
+        <p class="formula">cells/mL = (cells counted ÷ squares counted) × dilution factor × 10<sup>4</sup></p>
+      </section>
+
+      <details class="card" id="volCalc">
+        <summary>Volume calculator — how much suspension for a given number of cells?</summary>
+        <div class="fields">
+          <div class="field">
+            <span id="targetLabel">Live cells needed</span>
+            <div class="sci-input" role="group" aria-labelledby="targetLabel">
+              <input type="number" id="targetMantissa" inputmode="decimal" min="0" step="any" value="1" aria-label="Number">
+              <span class="times">× 10</span>
+              <input type="number" id="targetExponent" inputmode="numeric" min="0" max="12" step="1" value="6" aria-label="Power of ten" class="exp">
+              <span class="times">cells</span>
+            </div>
+          </div>
+        </div>
+        <div class="result result-wide result-live">
+          <span class="result-label">Volume of cell suspension to take</span>
+          <span class="result-value" id="volNeeded">—</span>
+        </div>
+        <p class="hint" id="volNote">Based on the live cell concentration above.</p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="footer">
+    hemocytocount v0.1 · developed by Eylan Yutuc ·
+    <a href="https://github.com/e-yut/hemocytocount" target="_blank" rel="noopener">github.com/e-yut/hemocytocount</a>
+  </footer>
+
+  <dialog id="instructions" aria-labelledby="instTitle">
+    <div class="dialog-head">
+      <h2 id="instTitle">Instructions</h2>
+      <button type="button" class="btn btn-icon" id="closeX" aria-label="Close instructions">✕</button>
+    </div>
+    <div class="dialog-body">
+      <h3>Theory</h3>
+      <p>A Neubauer haemocytometer is a counting chamber with an etched grid. Each large square is 1&nbsp;mm × 1&nbsp;mm and the chamber is 0.1&nbsp;mm deep, so one large square holds 0.1&nbsp;µL (10<sup>−4</sup>&nbsp;mL). The mean count per large square multiplied by 10<sup>4</sup> therefore gives cells per mL of what was loaded; multiplying by the dilution factor gives the concentration of the original suspension.</p>
+      <p><strong>Dye exclusion:</strong> live cells have intact membranes that exclude dyes such as trypan blue, so they look bright and clear. Dead cells take up the dye and look blue.</p>
+      <p class="formula">cells/mL = mean count per square × dilution factor × 10<sup>4</sup><br>viability (%) = live ÷ (live + dead) × 100</p>
+
+      <h3>Which cells to count</h3>
+      <ul>
+        <li>Count the cells inside each large square you use — typically the four corner squares, and the centre square if you want a fifth.</li>
+        <li>For cells on a boundary, <strong>count</strong> those touching the <strong>top and left</strong> lines (marked green on the grid) and <strong>ignore</strong> those touching the <strong>bottom and right</strong> lines, so no cell is counted twice.</li>
+        <li>Record unstained cells as <em>live</em> and blue-stained cells as <em>dead</em>.</li>
+        <li>Count a clump as its individual cells where you can tell them apart; if the sample is very clumpy, resuspend and reload.</li>
+        <li>As a guide, aim for roughly 20–100 cells per large square. Dilute further if it is too crowded, or resuspend in a smaller volume if there are too few.</li>
+      </ul>
+
+      <h3>Preparing the cell suspension</h3>
+      <ol>
+        <li>Centrifuge the cells to form a pellet.</li>
+        <li>Aspirate the media without disturbing the pellet.</li>
+        <li>Resuspend the pellet in a known volume of media and mix to a single-cell suspension.</li>
+        <li>Take a 10&nbsp;µL aliquot of the cell suspension.</li>
+        <li>Add it 1:1 to 10&nbsp;µL of exclusion dye (e.g. 0.4% trypan blue) — a dilution factor of 2.</li>
+        <li>Mix well by gentle pipetting.</li>
+        <li>Transfer 10&nbsp;µL into the haemocytometer chamber under the coverslip.</li>
+        <li>View with a microscope and count promptly, as prolonged exposure to the dye is toxic to cells.</li>
+      </ol>
+
+      <h3>Using this app</h3>
+      <ul>
+        <li>Type counts into the squares, or select a square and use the tally clicker.</li>
+        <li>Enter the resuspension volume to get the total number of cells.</li>
+        <li>Change the dilution factor if you did not mix 1:1 with dye.</li>
+      </ul>
+
+      <p class="links">
+        Further reading:
+        <a href="https://www.thermofisher.com/uk/en/home/references/gibco-cell-culture-basics/cell-culture-protocols/trypan-blue-exclusion.html" target="_blank" rel="noopener">Trypan Blue Protocol</a>
+        ·
+        <a href="https://www.stemcell.com/how-to-count-cells-with-a-hemocytometer.html" target="_blank" rel="noopener">How to Count Cells with a Hemocytometer</a>
+      </p>
+    </div>
+    <div class="dialog-foot">
+      <button type="button" class="btn btn-primary" id="closeBtn">Close</button>
+    </div>
+  </dialog>
+
+  <script src="static/app.js"></script>
+</body>
+</html>
