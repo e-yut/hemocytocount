@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -99,24 +99,29 @@
           </label>
         </div>
         <p class="summary" id="summary" aria-live="polite"></p>
+        <p class="summary manual-note" id="manualNote" hidden>
+          <span id="manualText"></span>
+          <button type="button" class="btn btn-small" id="clearManualBtn">↺ Use counts</button>
+        </p>
         <div class="results">
-          <div class="result result-live">
-            <span class="result-label">Live cells / mL</span>
-            <span class="result-value" id="liveConc">—</span>
+          <div class="result result-live" data-conc="live">
+            <span class="result-head"><label class="result-label" for="liveConc">Live cells / mL</label><button type="button" class="copy-btn" data-copy="liveConc" aria-label="Copy live cells per mL" title="Copy">⧉</button></span>
+            <input type="text" class="result-value result-input" id="liveConc" placeholder="—" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
           </div>
-          <div class="result result-dead">
-            <span class="result-label">Dead cells / mL</span>
-            <span class="result-value" id="deadConc">—</span>
+          <div class="result result-dead" data-conc="dead">
+            <span class="result-head"><label class="result-label" for="deadConc">Dead cells / mL</label><button type="button" class="copy-btn" data-copy="deadConc" aria-label="Copy dead cells per mL" title="Copy">⧉</button></span>
+            <input type="text" class="result-value result-input" id="deadConc" placeholder="—" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
           </div>
-          <div class="result">
-            <span class="result-label">Total cells / mL</span>
-            <span class="result-value" id="totalConc">—</span>
+          <div class="result" data-conc="total">
+            <span class="result-head"><label class="result-label" for="totalConc">Total cells / mL</label><button type="button" class="copy-btn" data-copy="totalConc" aria-label="Copy total cells per mL" title="Copy">⧉</button></span>
+            <input type="text" class="result-value result-input" id="totalConc" placeholder="—" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
           </div>
           <div class="result result-viability">
             <span class="result-label">Viability</span>
             <span class="result-value" id="viability">—</span>
           </div>
         </div>
+        <p class="hint edit-hint">Tap a concentration to highlight it for copying, or type over it to use a value measured elsewhere (e.g. 1.2e6).</p>
         <h3 class="subhead">Total cells in suspension</h3>
         <div class="results">
           <div class="result result-live">
@@ -197,6 +202,7 @@
       <h3>Using this app</h3>
       <ul>
         <li>Type counts into the squares, or select a square and use the tally clicker. Press Lock page to stop the page scrolling while you tally.</li>
+        <li>If the cells were counted elsewhere (e.g. an automated counter), type the cells/mL straight into the Results boxes.</li>
         <li>Enter the resuspension volume to get the total number of cells.</li>
         <li>Change the dilution factor if you did not mix 1:1 with dye.</li>
       </ul>

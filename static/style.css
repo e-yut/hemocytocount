@@ -369,6 +369,46 @@ html.locked, html.locked body { overflow: hidden; overscroll-behavior: none; tou
 .result-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .result-value sup { font-size: 0.65em; }
 
+.result-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 28px; }
+.result.manual .result-input { border-style: solid; border-color: var(--accent); }
+.result-input {
+  width: calc(100% + 12px);
+  min-width: 0;
+  height: 36px;
+  padding: 0 5px;
+  margin: 0 -6px;
+  font-size: clamp(16px, 5vw, 1.25rem);
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+.result-input:hover { border-color: var(--accent); }
+.result-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; background: var(--input-bg); }
+.result-input.invalid { outline-color: var(--danger); border-color: var(--danger); }
+.result-input::placeholder { color: var(--text); opacity: 1; }
+.copy-btn {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.copy-btn:hover, .copy-btn:focus-visible { color: var(--accent); border-color: var(--border); }
+.copy-btn.copied { color: var(--live); }
+.manual-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--text); }
+.manual-note[hidden] { display: none; }
+.manual-note.warn { color: var(--danger); }
+.edit-hint { margin: 8px 0 0; font-size: 0.78rem; }
+
 .subhead { font-size: 0.9rem; margin: 14px 0 8px; }
 
 .formula {

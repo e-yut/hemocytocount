@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   'use strict';
 
   // One large square is 1 mm x 1 mm x 0.1 mm deep = 0.1 uL, so count x 10^4 = cells per mL.
@@ -39,6 +39,70 @@
     return res;
   }
 
+  // Overlays concentrations typed in by hand. Up to two of live/dead/total are
+  // taken as given and the third follows from total = live + dead.
+  function applyManual(res, manual, volume) {
+    var has = function (k) { return manual && typeof manual[k] === 'number'; };
+    if (!has('live') && !has('dead') && !has('total')) return res;
+    var L, D, T;
+    if (has('total')) {
+      T = manual.total;
+      if (has('live')) { L = manual.live; D = T - L; }
+      else if (has('dead')) { D = manual.dead; L = T - D; }
+      else { L = null; D = null; }
+    } else {
+      L = has('live') ? manual.live : res.liveConc;
+      D = has('dead') ? manual.dead : res.deadConc;
+      T = L !== null && D !== null ? L + D : null;
+    }
+    var out = { counted: res.counted, live: res.live, dead: res.dead, manual: true, conflict: false,
+      viability: null, liveTotal: null, deadTotal: null, allTotal: null };
+    if (L !== null && L < 0) { L = null; out.conflict = true; }
+    if (D !== null && D < 0) { D = null; out.conflict = true; }
+    out.liveConc = L; out.deadConc = D; out.totalConc = T;
+    if (L !== null && D !== null && T > 0) out.viability = L / T * 100;
+    if (volume > 0) {
+      if (L !== null) out.liveTotal = L * volume;
+      if (D !== null) out.deadTotal = D * volume;
+      if (T !== null) out.allTotal = T * volume;
+    }
+    return out;
+  }
+
+  var SUPERS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+
+  // Accepts 1250000, 1,250,000, 1.25e6, 1.25E+06, 1.25 x 10^6 and 1.25 × 10⁶.
+  function parseCells(text) {
+    var s = String(text == null ? '' : text).trim();
+    if (!s) return null;
+    s = s.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+/g, function (run) {
+      return '^' + run.replace(/./g, function (ch) {
+        return ch === '⁺' ? '+' : ch === '⁻' ? '-' : String(SUPERS.indexOf(ch));
+      });
+    });
+    s = s.replace(/[\s\u00a0\u202f]/g, '').replace(/−/g, '-');
+    if (/^\d+,\d+$/.test(s.split(/[ex×*·]/i)[0]) && !/^\d{1,3},\d{3}$/.test(s.split(/[ex×*·]/i)[0])) s = s.replace(',', '.');
+    s = s.replace(/,/g, '');
+    var m = /^(\d+\.?\d*|\.\d+)(?:(?:[x×*·]10\^?|e)([+-]?\d+))?$/i.exec(s);
+    var n;
+    if (m) n = Number(m[1]) * Math.pow(10, Number(m[2] || 0));
+    else if ((m = /^10\^([+-]?\d+)$/.exec(s))) n = Math.pow(10, Number(m[1]));
+    else return NaN;
+    return isFinite(n) ? n : NaN;
+  }
+
+  // Plain-text version of formatCells for editable boxes and the clipboard.
+  function formatCellsText(x, sci) {
+    if (x === null || x === undefined) return '';
+    if (x === 0) return '0';
+    if (!sci) return Math.round(x).toLocaleString('en-GB');
+    var parts = x.toExponential(2).split('e');
+    var exp = String(Number(parts[1])).replace(/./g, function (ch) {
+      return ch === '-' ? '⁻' : SUPERS.charAt(Number(ch));
+    });
+    return parts[0] + ' × 10' + exp;
+  }
+
   function formatCells(x, sci) {
     if (x === null) return '—';
     if (x === 0) return '0';
@@ -53,12 +117,16 @@
     return parts[0] + ' × 10<sup>' + Number(parts[1]) + '</sup>';
   }
 
-  window.hemocytocount = { calculate: calculate, formatCells: formatCells, formatVolume: formatVolume };
+  window.hemocytocount = { calculate: calculate, applyManual: applyManual, parseCells: parseCells,
+    formatCells: formatCells, formatCellsText: formatCellsText, formatVolume: formatVolume };
 
   var $ = function (id) { return document.getElementById(id); };
   var squares = [];
   var selected = 0;
   var soundOn = true;
+  var CONC_KEYS = ['live', 'dead', 'total'];
+  // Hand-entered concentrations, oldest first: [{ key: 'live', value: 1.2e6 }].
+  var manual = [];
 
   // ---------- Haemocytometer drawing ----------
   function buildGridSvg() {
@@ -131,7 +199,7 @@
       el.addEventListener('click', function () { select(i); });
       [sq.live, sq.dead].forEach(function (input) {
         input.addEventListener('focus', function () { select(i); });
-        input.addEventListener('input', update);
+        input.addEventListener('input', function () { manual = []; update(); });
       });
     });
 
@@ -199,6 +267,7 @@
     var current = parseCount(input.value);
     if (delta < 0 && !current) return false;
     input.value = String(Math.max(0, Math.floor(current || 0) + delta));
+    manual = [];
     if (!silent) {
       playClick(delta < 0 ? 900 : kind === 'live' ? 2600 : 1700);
       if (navigator.vibrate) navigator.vibrate(12);
@@ -248,16 +317,35 @@
     $('summary').textContent = res.counted
       ? res.counted + (res.counted === 1 ? ' square' : ' squares') + ' counted · ' + res.live + ' live · ' + res.dead + ' dead'
       : 'No squares counted yet.';
-    $('liveConc').innerHTML = formatCells(res.liveConc, sci);
-    $('deadConc').innerHTML = formatCells(res.deadConc, sci);
-    $('totalConc').innerHTML = formatCells(res.totalConc, sci);
+
+    var given = {};
+    manual.forEach(function (m) { given[m.key] = m.value; });
+    res = applyManual(res, given, volume);
+    var note = $('manualNote');
+    note.hidden = !manual.length;
+    note.classList.toggle('warn', !!res.conflict);
+    if (manual.length) {
+      var names = manual.map(function (m) { return m.key; }).sort().join(' and ');
+      $('manualText').textContent = res.conflict
+        ? 'The entered ' + names + ' cells/mL do not add up (total is smaller than its part).'
+        : 'Using the ' + names + ' cells/mL you entered.';
+    }
+    CONC_KEYS.forEach(function (key) {
+      var el = $(key + 'Conc');
+      el.parentNode.classList.toggle('manual', given[key] !== undefined);
+      // Leave a box alone while it is being typed in.
+      if (el.dataset.dirty && document.activeElement === el) return;
+      el.value = formatCellsText(res[key + 'Conc'], sci);
+      el.classList.remove('invalid');
+    });
     $('viability').textContent = res.viability === null ? '—' : res.viability.toFixed(1) + ' %';
     $('liveTotal').innerHTML = formatCells(res.liveTotal, sci);
     $('deadTotal').innerHTML = formatCells(res.deadTotal, sci);
     $('allTotal').innerHTML = formatCells(res.allTotal, sci);
 
     var target = numberFrom('targetMantissa') * Math.pow(10, numberFrom('targetExponent'));
-    var out = $('volNeeded'), note = $('volNote');
+    var out = $('volNeeded');
+    note = $('volNote');
     note.className = 'hint';
     note.textContent = 'Based on the live cell concentration above.';
     if (res.liveConc > 0 && target > 0 && isFinite(target)) {
@@ -270,7 +358,7 @@
       }
     } else {
       out.textContent = '—';
-      if (!(res.liveConc > 0)) note.textContent = 'Enter live cell counts above to calculate a volume.';
+      if (!(res.liveConc > 0)) note.textContent = 'Enter live cell counts or a live cells/mL value above to calculate a volume.';
     }
 
     updateTally();
@@ -288,7 +376,8 @@
         sound: soundOn,
         mantissa: $('targetMantissa').value,
         exponent: $('targetExponent').value,
-        selected: selected
+        selected: selected,
+        manual: manual
       }));
     } catch (e) { /* storage unavailable */ }
   }
@@ -309,6 +398,11 @@
     if (st.mantissa != null) $('targetMantissa').value = st.mantissa;
     if (st.exponent != null) $('targetExponent').value = st.exponent;
     if (st.selected >= 0 && st.selected < squares.length) selected = st.selected;
+    if (Array.isArray(st.manual)) {
+      manual = st.manual.filter(function (m) {
+        return m && CONC_KEYS.indexOf(m.key) !== -1 && typeof m.value === 'number' && isFinite(m.value) && m.value >= 0;
+      }).slice(-2);
+    }
   }
 
   // ---------- Theme ----------
@@ -378,10 +472,57 @@
   });
   $('sciToggle').addEventListener('change', update);
 
+  // Editable concentrations: tap to highlight, type to override, copy button.
+  function setManual(key, value) {
+    manual = manual.filter(function (m) { return m.key !== key; });
+    if (value !== null) manual.push({ key: key, value: value });
+    // Two values fix the third, so the oldest entry gives way.
+    if (manual.length > 2) manual.shift();
+  }
+  CONC_KEYS.forEach(function (key) {
+    var el = $(key + 'Conc');
+    el.addEventListener('focus', function () {
+      setTimeout(function () { if (document.activeElement === el) el.select(); }, 0);
+    });
+    el.addEventListener('input', function () {
+      el.dataset.dirty = '1';
+      var n = parseCells(el.value);
+      el.classList.toggle('invalid', n !== n);
+      if (n !== n) return;
+      setManual(key, n);
+      update();
+    });
+    el.addEventListener('blur', function () { delete el.dataset.dirty; update(); });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') el.blur(); });
+  });
+  $('clearManualBtn').addEventListener('click', function () { manual = []; update(); });
+
+  function copyText(text, el) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return legacyCopy(el); });
+    }
+    return Promise.resolve(legacyCopy(el));
+  }
+  function legacyCopy(el) {
+    try { el.focus(); el.select(); return document.execCommand('copy'); } catch (e) { return false; }
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.copy-btn'), function (btn) {
+    btn.addEventListener('click', function () {
+      var el = $(btn.dataset.copy);
+      if (!el.value) return;
+      copyText(el.value, el).then(function (ok) {
+        btn.textContent = ok ? '✓' : '✕';
+        btn.classList.toggle('copied', ok);
+        setTimeout(function () { btn.textContent = '⧉'; btn.classList.remove('copied'); }, 1200);
+      });
+    });
+  });
+
   $('resetBtn').addEventListener('click', function () {
-    var hasCounts = squares.some(function (sq) { return sq.live.value !== '' || sq.dead.value !== ''; });
+    var hasCounts = manual.length || squares.some(function (sq) { return sq.live.value !== '' || sq.dead.value !== ''; });
     if (hasCounts && !window.confirm('Reset all counts to zero?')) return;
     squares.forEach(function (sq) { sq.live.value = ''; sq.dead.value = ''; });
+    manual = [];
     select(0);
     update();
   });

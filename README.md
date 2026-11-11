@@ -1,4 +1,4 @@
-﻿# hemocytocount v0.1
+# hemocytocount v0.1
 
 A mobile-friendly web app for calculating cells per mL and % viability from Neubauer haemocytometer counts using the dye exclusion principle (e.g. trypan blue).
 
@@ -10,6 +10,7 @@ A mobile-friendly web app for calculating cells per mL and % viability from Neub
 - Calculations adjust to the number of squares actually counted (a square left blank is ignored; an entered 0 is included)
 - Virtual tally clicker with an audible click (can be muted), undo buttons and multi-touch support (Live and Dead can be pressed together), plus a Lock page button that disables scrolling while you count
 - Live cells/mL, dead cells/mL, total cells/mL and % viability, in scientific or standard notation
+- Editable results: type live, dead or total cells/mL counted elsewhere (e.g. `1.2e6`) and the rest follows; tap a value to highlight it, or use its copy button
 - Total cell number from the resuspension volume (mL)
 - Editable dilution factor (default 2, for a 1:1 mix with dye)
 - Collapsible calculator for the volume of suspension needed for a given number of live cells
