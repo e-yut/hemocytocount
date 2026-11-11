@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="hemocytocount — cells per mL and viability calculator for a Neubauer haemocytometer using dye exclusion.">
   <meta name="theme-color" content="#0f766e">
-  <title>hemocytocount v0.1</title>
+  <title>hemocytocount v0.2</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f766e'/%3E%3Cpath d='M11 4v24M21 4v24M4 11h24M4 21h24' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="static/style.css">
   <script>
@@ -19,7 +19,7 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>hemocytocount <span class="version">v0.1</span></h1>
+    <h1>hemocytocount <span class="version">v0.2</span></h1>
     <div class="topbar-actions">
       <button type="button" id="instructionsBtn" class="btn">Instructions</button>
       <button type="button" id="themeBtn" class="btn" aria-label="Toggle light/dark mode"></button>
@@ -159,11 +159,74 @@
         </div>
         <p class="hint" id="volNote">Based on the live cell concentration above.</p>
       </details>
+
+      <details class="card" id="seedCalc">
+        <summary>Plate seeding — media and cell volumes for wells, dishes or flasks</summary>
+        <div class="fields">
+          <label class="field">
+            <span>Plate, dish or flask</span>
+            <select id="seedVessel"></select>
+          </label>
+          <p class="hint" id="seedSuggest"></p>
+          <div class="fields-2">
+            <label class="field">
+              <span id="seedWellVolLabel">Final volume per well (mL)</span>
+              <input type="number" id="seedWellVol" inputmode="decimal" min="0" step="any" value="0.1">
+            </label>
+            <label class="field">
+              <span id="seedWellsLabel">Wells to seed</span>
+              <input type="number" id="seedWells" inputmode="numeric" min="1" step="1" value="96">
+            </label>
+            <label class="field">
+              <span id="seedCellsLabel">Live cells per well</span>
+              <input type="text" id="seedCells" value="10000" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+            </label>
+            <label class="field">
+              <span>Excess for pipetting (%)</span>
+              <input type="number" id="seedExcess" inputmode="decimal" min="0" step="any" value="10">
+            </label>
+          </div>
+        </div>
+        <p class="hint" id="seedNote"></p>
+
+        <h3 class="subhead">Option A — media first, then cells, into each <span class="seed-unit">well</span></h3>
+        <div class="results">
+          <div class="result">
+            <span class="result-label">1. Media per <span class="seed-unit">well</span></span>
+            <span class="result-value" id="seedMediaEach">—</span>
+          </div>
+          <div class="result result-live">
+            <span class="result-label">2. Cell suspension per <span class="seed-unit">well</span></span>
+            <span class="result-value" id="seedCellsEach">—</span>
+          </div>
+        </div>
+        <p class="hint" id="seedNoteA"></p>
+
+        <h3 class="subhead">Option B — dilute the cells first, then dispense</h3>
+        <div class="results">
+          <div class="result result-live">
+            <span class="result-label">1. Cell suspension to take</span>
+            <span class="result-value" id="seedAliquot">—</span>
+          </div>
+          <div class="result">
+            <span class="result-label">2. Media to add to it</span>
+            <span class="result-value" id="seedMedia">—</span>
+          </div>
+          <div class="result result-wide result-viability">
+            <span class="result-label">3. Mix, then dispense into each <span class="seed-unit">well</span></span>
+            <span class="result-value" id="seedDispense">—</span>
+          </div>
+        </div>
+        <p class="hint" id="seedNoteB"></p>
+        <p class="hint">Suggested volumes and seeding densities are from
+          <a href="https://www.thermofisher.com/uk/en/home/references/gibco-cell-culture-basics/cell-culture-protocols/cell-culture-useful-numbers.html" target="_blank" rel="noopener">Thermo Fisher — Useful numbers for cell culture</a>
+          (densities are for HeLa cells; adjust for your cell type).</p>
+      </details>
     </div>
   </main>
 
   <footer class="footer">
-    hemocytocount v0.1 · developed by Eylan Yutuc ·
+    hemocytocount v0.2 · developed by Eylan Yutuc ·
     <a href="https://github.com/e-yut/hemocytocount" target="_blank" rel="noopener">github.com/e-yut/hemocytocount</a>
   </footer>
 
@@ -205,6 +268,7 @@
         <li>If the cells were counted elsewhere (e.g. an automated counter), type the cells/mL straight into the Results boxes.</li>
         <li>Enter the resuspension volume to get the total number of cells.</li>
         <li>Change the dilution factor if you did not mix 1:1 with dye.</li>
+        <li>Open Plate seeding to work out the media and cell suspension volumes for your wells, dishes or flasks.</li>
       </ul>
 
       <p class="links">

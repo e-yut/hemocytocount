@@ -117,7 +117,58 @@
     return parts[0] + ' × 10<sup>' + Number(parts[1]) + '</sup>';
   }
 
-  window.hemocytocount = { calculate: calculate, applyManual: applyManual, parseCells: parseCells,
+  // Approximate growth medium volumes (mL) and seeding densities (cells per well, dish or flask)
+  // from Thermo Fisher's "Useful numbers for cell culture" table.
+  var VESSELS = [
+    { id: '6w', name: '6-well plate', unit: 'well', units: 'wells', lo: 1, hi: 3, def: 2, seed: 0.3e6 },
+    { id: '12w', name: '12-well plate', unit: 'well', units: 'wells', lo: 1, hi: 2, def: 1, seed: 0.1e6 },
+    { id: '24w', name: '24-well plate', unit: 'well', units: 'wells', lo: 0.5, hi: 1, def: 0.5, seed: 0.05e6 },
+    { id: '48w', name: '48-well plate', unit: 'well', units: 'wells', lo: 0.2, hi: 0.4, def: 0.3, seed: 0.03e6 },
+    { id: '96w', name: '96-well plate', unit: 'well', units: 'wells', lo: 0.1, hi: 0.2, def: 0.1, seed: 0.01e6 },
+    { id: '384w', name: '384-well plate', unit: 'well', units: 'wells', lo: 0.08, hi: 0.08, def: 0.08, seed: 1800 },
+    { id: '1536w', name: '1536-well plate', unit: 'well', units: 'wells', lo: 0.01, hi: 0.01, def: 0.01, seed: 900 },
+    { id: 'd35', name: '35 mm dish', unit: 'dish', units: 'dishes', lo: 2, hi: 2, def: 2, seed: 0.3e6 },
+    { id: 'd60', name: '60 mm dish', unit: 'dish', units: 'dishes', lo: 5, hi: 5, def: 5, seed: 0.8e6 },
+    { id: 'd100', name: '100 mm dish', unit: 'dish', units: 'dishes', lo: 12, hi: 12, def: 12, seed: 2.2e6 },
+    { id: 'd150', name: '150 mm dish', unit: 'dish', units: 'dishes', lo: 30, hi: 30, def: 30, seed: 5e6 },
+    { id: 't25', name: 'T-25 flask', unit: 'flask', units: 'flasks', lo: 3, hi: 5, def: 5, seed: 0.7e6 },
+    { id: 't75', name: 'T-75 flask', unit: 'flask', units: 'flasks', lo: 8, hi: 15, def: 12, seed: 2.1e6 },
+    { id: 't175', name: 'T-175 flask', unit: 'flask', units: 'flasks', lo: 35, hi: 53, def: 35, seed: 4.9e6 },
+    { id: 't225', name: 'T-225 flask', unit: 'flask', units: 'flasks', lo: 45, hi: 68, def: 45, seed: 6.3e6 },
+    { id: 'custom', name: 'Other (enter your own volume)', unit: 'well', units: 'wells' }
+  ];
+
+  // conc in live cells/mL, wellVol in mL. Volumes returned in mL.
+  // Option A adds media then cells to each well; option B is one diluted mix dispensed at wellVol per well.
+  function seedPlan(conc, wellVol, wells, cellsPerWell, excessPct) {
+    if (!(conc > 0 && wellVol > 0 && wells > 0 && cellsPerWell > 0 && excessPct >= 0)) return null;
+    if (![conc, wellVol, wells, cellsPerWell, excessPct].every(isFinite)) return null;
+    var factor = 1 + excessPct / 100;
+    var cellVol = cellsPerWell / conc;
+    var mixVol = wellVol * wells * factor;
+    var aliquot = cellVol * wells * factor;
+    return {
+      tooDilute: cellVol > wellVol * (1 + 1e-9),
+      cellVol: cellVol,
+      mediaVol: Math.max(0, wellVol - cellVol),
+      aliquot: aliquot,
+      mixMedia: Math.max(0, mixVol - aliquot),
+      mixVol: mixVol,
+      mixConc: cellsPerWell / wellVol,
+      cellsNeeded: cellsPerWell * wells * factor
+    };
+  }
+
+  // Volume in mL shown in the handier of mL or uL, with the other alongside.
+  function volumeHtml(mL) {
+    if (mL === 0) return '0 mL';
+    return mL < 1
+      ? formatVolume(mL * 1000) + ' µL <small>(' + formatVolume(mL) + ' mL)</small>'
+      : formatVolume(mL) + ' mL';
+  }
+  function volumeText(mL) { return volumeHtml(mL).replace(/<small>.*<\/small>/, '').replace(/<sup>(-?\d+)<\/sup>/, '^$1').trim(); }
+
+  window.hemocytocount = { calculate: calculate, applyManual: applyManual, parseCells: parseCells, seedPlan: seedPlan, VESSELS: VESSELS,
     formatCells: formatCells, formatCellsText: formatCellsText, formatVolume: formatVolume };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -361,8 +412,85 @@
       if (!(res.liveConc > 0)) note.textContent = 'Enter live cell counts or a live cells/mL value above to calculate a volume.';
     }
 
+    updateSeed(res.liveConc, volume);
     updateTally();
     save();
+  }
+
+  // ---------- Plate seeding ----------
+  function vessel() {
+    var id = $('seedVessel').value;
+    return VESSELS.filter(function (v) { return v.id === id; })[0] || VESSELS[VESSELS.length - 1];
+  }
+
+  function buildVessels() {
+    var sel = $('seedVessel');
+    VESSELS.forEach(function (v) {
+      var o = document.createElement('option');
+      o.value = v.id;
+      o.textContent = v.name;
+      sel.appendChild(o);
+    });
+    sel.value = '96w';
+  }
+
+  function updateSeed(conc, available) {
+    var v = vessel();
+    var sci = $('sciToggle').checked;
+    Array.prototype.forEach.call(document.querySelectorAll('.seed-unit'), function (el) { el.textContent = v.unit; });
+    $('seedWellVolLabel').textContent = 'Final volume per ' + v.unit + ' (mL)';
+    $('seedWellsLabel').textContent = v.units.charAt(0).toUpperCase() + v.units.slice(1) + ' to seed';
+    $('seedCellsLabel').textContent = 'Live cells per ' + v.unit;
+    $('seedSuggest').innerHTML = v.def
+      ? 'Suggested medium: ' + (v.lo === v.hi ? v.lo : v.lo + ' to ' + v.hi) + ' mL per ' + v.unit +
+        ' · typical seeding: ' + formatCells(v.seed, sci) + ' cells per ' + v.unit + '.'
+      : 'Enter the final volume you want in each ' + v.unit + '.';
+
+    var cellsEl = $('seedCells');
+    var cells = parseCells(cellsEl.value);
+    cellsEl.classList.toggle('invalid', cells !== cells);
+    var wellVol = numberFrom('seedWellVol'), wells = numberFrom('seedWells'), excess = numberFrom('seedExcess');
+    if ($('seedExcess').value === '') excess = 0;
+    var plan = seedPlan(conc, wellVol, wells, cells, excess);
+    var note = $('seedNote'), noteA = $('seedNoteA'), noteB = $('seedNoteB');
+    var ids = ['seedMediaEach', 'seedCellsEach', 'seedAliquot', 'seedMedia', 'seedDispense'];
+    note.className = noteA.className = noteB.className = 'hint';
+    note.textContent = noteA.textContent = noteB.textContent = '';
+    note.hidden = true;
+    if (!plan || plan.tooDilute) {
+      ids.forEach(function (id) { $(id).textContent = '—'; });
+      note.hidden = false;
+      if (!(conc > 0)) note.textContent = 'Enter live cell counts or a live cells/mL value above to plan the seeding.';
+      else if (!plan) note.textContent = 'Enter the volume, number of ' + v.units + ' and cells per ' + v.unit + ' (e.g. 10000 or 1e4).';
+      else {
+        note.className = 'hint warn';
+        note.textContent = 'The cell suspension is too dilute: ' + volumeText(plan.cellVol) + ' of it holds the cells for one ' + v.unit +
+          ', more than the ' + volumeText(wellVol) + ' final volume. Spin down and resuspend in less media, or lower the target.';
+      }
+      return;
+    }
+    var pct = Number(excess.toFixed(2));
+    var extra = pct ? ' plus ' + pct + '% excess' : '';
+    var count = wells + ' ' + (wells === 1 ? v.unit : v.units);
+    $('seedMediaEach').innerHTML = volumeHtml(plan.mediaVol);
+    $('seedCellsEach').innerHTML = volumeHtml(plan.cellVol);
+    $('seedAliquot').innerHTML = volumeHtml(plan.aliquot);
+    $('seedMedia').innerHTML = volumeHtml(plan.mixMedia);
+    $('seedDispense').innerHTML = volumeHtml(wellVol);
+    noteA.innerHTML = 'For ' + count + extra + ', have ready ' + volumeText(plan.mixMedia) + ' of media and ' +
+      volumeText(plan.aliquot) + ' of cell suspension.';
+    if (plan.cellVol < 0.002) {
+      noteA.className = 'hint warn';
+      noteA.innerHTML = volumeText(plan.cellVol) + ' is too small to pipette accurately — use option B instead.';
+    }
+    noteB.innerHTML = 'Makes ' + volumeText(plan.mixVol) + ' at ' + formatCells(plan.mixConc, sci) + ' cells/mL (' +
+      formatCells(plan.cellsNeeded, sci) + ' live cells) — enough for ' + count + extra + '.';
+    if (available > 0 && plan.aliquot > available * (1 + 1e-9)) {
+      note.hidden = false;
+      note.className = 'hint warn';
+      note.textContent = 'This needs ' + volumeText(plan.aliquot) + ' of cell suspension, more than the ' + volumeText(available) +
+        ' available — you do not have enough live cells.';
+    }
   }
 
   // ---------- Persistence ----------
@@ -377,7 +505,9 @@
         mantissa: $('targetMantissa').value,
         exponent: $('targetExponent').value,
         selected: selected,
-        manual: manual
+        manual: manual,
+        seed: { vessel: $('seedVessel').value, wellVol: $('seedWellVol').value, wells: $('seedWells').value,
+          cells: $('seedCells').value, excess: $('seedExcess').value }
       }));
     } catch (e) { /* storage unavailable */ }
   }
@@ -398,6 +528,12 @@
     if (st.mantissa != null) $('targetMantissa').value = st.mantissa;
     if (st.exponent != null) $('targetExponent').value = st.exponent;
     if (st.selected >= 0 && st.selected < squares.length) selected = st.selected;
+    if (st.seed) {
+      if (VESSELS.some(function (v) { return v.id === st.seed.vessel; })) $('seedVessel').value = st.seed.vessel;
+      ['wellVol', 'wells', 'cells', 'excess'].forEach(function (k) {
+        if (st.seed[k] != null) $('seed' + k.charAt(0).toUpperCase() + k.slice(1)).value = st.seed[k];
+      });
+    }
     if (Array.isArray(st.manual)) {
       manual = st.manual.filter(function (m) {
         return m && CONC_KEYS.indexOf(m.key) !== -1 && typeof m.value === 'number' && isFinite(m.value) && m.value >= 0;
@@ -414,6 +550,7 @@
 
   // ---------- Wiring ----------
   buildHemo();
+  buildVessels();
   restore();
   setSound(soundOn);
   setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
@@ -467,10 +604,16 @@
     if (locked && !(e.target.closest && e.target.closest('dialog[open]'))) e.preventDefault();
   }, { passive: false });
 
-  ['volume', 'dilution', 'targetMantissa', 'targetExponent'].forEach(function (id) {
+  ['volume', 'dilution', 'targetMantissa', 'targetExponent', 'seedWellVol', 'seedWells', 'seedCells', 'seedExcess'].forEach(function (id) {
     $(id).addEventListener('input', update);
   });
   $('sciToggle').addEventListener('change', update);
+  $('seedVessel').addEventListener('change', function () {
+    var v = vessel();
+    if (v.def) $('seedWellVol').value = v.def;
+    update();
+  });
+  $('seedCells').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('seedCells').blur(); });
 
   // Editable concentrations: tap to highlight, type to override, copy button.
   function setManual(key, value) {

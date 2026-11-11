@@ -326,7 +326,7 @@ html.locked, html.locked body { overflow: hidden; overscroll-behavior: none; tou
 .field { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); align-content: start; }
 .field small { font-size: 0.75rem; }
 
-.field input, .sci-input input {
+.field input, .field select, .sci-input input {
   width: 100%;
   height: 44px;
   padding: 0 10px;
@@ -337,6 +337,10 @@ html.locked, html.locked body { overflow: hidden; overscroll-behavior: none; tou
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+.field input.invalid { border-color: var(--danger); outline-color: var(--danger); }
+.fields-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+.result-value small { font-size: 0.7em; font-weight: 500; color: var(--muted); }
 
 .sci-input { display: flex; align-items: center; gap: 8px; color: var(--text); }
 .sci-input input { flex: 1; min-width: 0; }

@@ -1,4 +1,4 @@
-# hemocytocount v0.1
+# hemocytocount v0.2
 
 A mobile-friendly web app for calculating cells per mL and % viability from Neubauer haemocytometer counts using the dye exclusion principle (e.g. trypan blue).
 
@@ -14,6 +14,7 @@ A mobile-friendly web app for calculating cells per mL and % viability from Neub
 - Total cell number from the resuspension volume (mL)
 - Editable dilution factor (default 2, for a 1:1 mix with dye)
 - Collapsible calculator for the volume of suspension needed for a given number of live cells
+- Collapsible plate seeding planner: choose a plate, dish or flask (with suggested media volumes), the number of wells, the target live cells per well and a % excess, and get either the media and cell suspension volumes to add to each well, or the volumes for one diluted mix to dispense into every well
 - Instructions pop-up with brief theory, counting rules and sample preparation
 - Reset button, light/dark mode, and counts saved in the browser between visits
 
@@ -26,6 +27,14 @@ cells/mL    = (cells counted / squares counted) x dilution factor x 10^4
 viability % = live / (live + dead) x 100
 total cells = cells/mL x resuspension volume (mL)
 volume (mL) = cells required / live cells per mL
+
+Plate seeding, per well:
+  cell suspension = target cells per well / live cells per mL
+  media           = final volume per well - cell suspension
+Plate seeding, diluted mix (dispense the final volume per well):
+  total volume    = final volume per well x wells x (1 + excess % / 100)
+  cell suspension = target cells per well x wells x (1 + excess % / 100) / live cells per mL
+  media           = total volume - cell suspension
 ```
 
 ## Run locally
@@ -35,6 +44,10 @@ No build step or dependencies. Open `index.html` in a browser, or serve the fold
 ```
 python -m http.server 8000
 ```
+
+## Reference
+
+Suggested media volumes and seeding densities for culture vessels are from Thermo Fisher, [Useful numbers for cell culture](https://www.thermofisher.com/uk/en/home/references/gibco-cell-culture-basics/cell-culture-protocols/cell-culture-useful-numbers.html).
 
 ## Licence
 
