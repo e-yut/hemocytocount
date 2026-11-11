@@ -159,13 +159,20 @@
   // ---------- Tally clicker ----------
   var audioCtx = null;
 
-  function playClick(freq) {
-    if (!soundOn) return;
+  function ensureAudio() {
     var Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
+    if (!Ctx) return false;
     try {
       if (!audioCtx) audioCtx = new Ctx();
       if (audioCtx.state === 'suspended') audioCtx.resume();
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function playClick(freq) {
+    if (!soundOn) return;
+    if (!ensureAudio()) return;
+    try {
       var len = Math.floor(audioCtx.sampleRate * 0.04);
       var buffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
       var data = buffer.getChannelData(0);
@@ -187,14 +194,17 @@
     } catch (e) { /* audio unavailable */ }
   }
 
-  function tally(kind, delta) {
+  function tally(kind, delta, silent) {
     var input = squares[selected][kind];
     var current = parseCount(input.value);
-    if (delta < 0 && !current) return;
+    if (delta < 0 && !current) return false;
     input.value = String(Math.max(0, Math.floor(current || 0) + delta));
-    playClick(delta < 0 ? 900 : kind === 'live' ? 2600 : 1700);
-    if (navigator.vibrate) navigator.vibrate(12);
+    if (!silent) {
+      playClick(delta < 0 ? 900 : kind === 'live' ? 2600 : 1700);
+      if (navigator.vibrate) navigator.vibrate(12);
+    }
     update();
+    return true;
   }
 
   function updateTally() {
@@ -304,10 +314,44 @@
   select(selected);
   update();
 
-  $('tallyLive').addEventListener('click', function () { tally('live', 1); });
-  $('tallyDead').addEventListener('click', function () { tally('dead', 1); });
-  $('undoLive').addEventListener('click', function () { tally('live', -1); });
-  $('undoDead').addEventListener('click', function () { tally('dead', -1); });
+  // Multi-touch: every finger counts on touch-down, so Live and Dead can be
+  // pressed together or in quick succession. Clicks only handle the keyboard.
+  function bindTally(id, kind, delta) {
+    var btn = $(id);
+    var active = {};
+    var release = function (e) {
+      delete active[e.pointerId];
+      if (!Object.keys(active).length) btn.classList.remove('pressed');
+    };
+    if (window.PointerEvent) {
+      btn.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        btn.classList.add('pressed');
+        active[e.pointerId] = { square: selected, applied: tally(kind, delta) };
+      });
+      // The touch turned into a scroll, so take the count back.
+      btn.addEventListener('pointercancel', function (e) {
+        var press = active[e.pointerId];
+        if (press && press.applied && press.square === selected) tally(kind, -delta, true);
+        release(e);
+      });
+      ['pointerup', 'pointerleave'].forEach(function (type) {
+        btn.addEventListener(type, release);
+      });
+      btn.addEventListener('click', function (e) { if (e.detail === 0) tally(kind, delta); });
+    } else {
+      btn.addEventListener('click', function () { tally(kind, delta); });
+    }
+    btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+  bindTally('tallyLive', 'live', 1);
+  bindTally('tallyDead', 'dead', 1);
+  bindTally('undoLive', 'live', -1);
+  bindTally('undoDead', 'dead', -1);
+  // iOS only unlocks audio on touchend/click, not on touch-down.
+  ['touchend', 'click'].forEach(function (type) {
+    document.addEventListener(type, function () { if (soundOn) ensureAudio(); }, { passive: true });
+  });
   $('soundBtn').addEventListener('click', function () { setSound(!soundOn); playClick(2600); save(); });
 
   ['volume', 'dilution', 'targetMantissa', 'targetExponent'].forEach(function (id) {

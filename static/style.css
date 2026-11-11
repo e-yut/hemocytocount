@@ -302,7 +302,9 @@ a { color: var(--accent); }
   transition: transform 0.05s;
 }
 
-.tally-btn:active { transform: scale(0.96); }
+.tally-btn:active, .tally-btn.pressed { transform: scale(0.96); }
+.tally-col .btn { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.tally-btn { -webkit-touch-callout: none; }
 .tally-live { background: var(--live-bg); border-color: var(--live); color: var(--live); }
 .tally-dead { background: var(--dead-bg); border-color: var(--dead); color: var(--dead); }
 .tally-name { font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
