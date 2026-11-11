@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   'use strict';
 
   // One large square is 1 mm x 1 mm x 0.1 mm deep = 0.1 uL, so count x 10^4 = cells per mL.
@@ -220,6 +220,18 @@
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
 
+  var locked = false;
+
+  function setLocked(on) {
+    locked = on;
+    var b = $('lockBtn');
+    b.textContent = on ? '🔒 Locked' : '🔓 Lock page';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = on ? 'Scrolling is disabled. Tap to unlock.' : 'Disable scrolling while you tally.';
+    document.documentElement.classList.toggle('locked', on);
+    if (on) $('tallyCard').scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  }
+
   // ---------- Results ----------
   function numberFrom(id) {
     var v = $(id).value;
@@ -327,15 +339,18 @@
       btn.addEventListener('pointerdown', function (e) {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         btn.classList.add('pressed');
-        active[e.pointerId] = { square: selected, applied: tally(kind, delta) };
+        // While the page can still scroll, a touch only counts on release, so
+        // a swipe that starts on a button neither counts nor clicks.
+        var pending = e.pointerType === 'touch' && !locked;
+        active[e.pointerId] = { pending: pending };
+        if (!pending) tally(kind, delta);
       });
-      // The touch turned into a scroll, so take the count back.
-      btn.addEventListener('pointercancel', function (e) {
+      btn.addEventListener('pointerup', function (e) {
         var press = active[e.pointerId];
-        if (press && press.applied && press.square === selected) tally(kind, -delta, true);
+        if (press && press.pending) tally(kind, delta);
         release(e);
       });
-      ['pointerup', 'pointerleave'].forEach(function (type) {
+      ['pointercancel', 'pointerleave'].forEach(function (type) {
         btn.addEventListener(type, release);
       });
       btn.addEventListener('click', function (e) { if (e.detail === 0) tally(kind, delta); });
@@ -353,6 +368,10 @@
     document.addEventListener(type, function () { if (soundOn) ensureAudio(); }, { passive: true });
   });
   $('soundBtn').addEventListener('click', function () { setSound(!soundOn); playClick(2600); save(); });
+  $('lockBtn').addEventListener('click', function () { setLocked(!locked); });
+  document.addEventListener('touchmove', function (e) {
+    if (locked && !(e.target.closest && e.target.closest('dialog[open]'))) e.preventDefault();
+  }, { passive: false });
 
   ['volume', 'dilution', 'targetMantissa', 'targetExponent'].forEach(function (id) {
     $(id).addEventListener('input', update);

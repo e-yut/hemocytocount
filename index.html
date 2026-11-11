@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -42,10 +42,13 @@
         </p>
       </section>
 
-      <section class="card" aria-labelledby="tallyTitle">
+      <section class="card" id="tallyCard" aria-labelledby="tallyTitle">
         <div class="card-head">
           <h2 id="tallyTitle">Tally clicker</h2>
-          <button type="button" id="soundBtn" class="btn" aria-pressed="true"></button>
+          <div class="card-actions">
+            <button type="button" id="lockBtn" class="btn" aria-pressed="false">🔓 Lock page</button>
+            <button type="button" id="soundBtn" class="btn" aria-pressed="true"></button>
+          </div>
         </div>
         <div class="square-picker" role="group" aria-label="Square to tally">
           <span class="picker-label">Square</span>
@@ -193,7 +196,7 @@
 
       <h3>Using this app</h3>
       <ul>
-        <li>Type counts into the squares, or select a square and use the tally clicker.</li>
+        <li>Type counts into the squares, or select a square and use the tally clicker. Press Lock page to stop the page scrolling while you tally.</li>
         <li>Enter the resuspension volume to get the total number of cells.</li>
         <li>Change the dilution factor if you did not mix 1:1 with dye.</li>
       </ul>

@@ -8,7 +8,7 @@ A mobile-friendly web app for calculating cells per mL and % viability from Neub
 
 - Haemocytometer grid with a **live** and a **dead** count box for each of the five large squares (four corners and the centre)
 - Calculations adjust to the number of squares actually counted (a square left blank is ignored; an entered 0 is included)
-- Virtual tally clicker with an audible click (can be muted), undo buttons and multi-touch support (Live and Dead can be pressed together)
+- Virtual tally clicker with an audible click (can be muted), undo buttons and multi-touch support (Live and Dead can be pressed together), plus a Lock page button that disables scrolling while you count
 - Live cells/mL, dead cells/mL, total cells/mL and % viability, in scientific or standard notation
 - Total cell number from the resuspension volume (mL)
 - Editable dilution factor (default 2, for a 1:1 mix with dye)
